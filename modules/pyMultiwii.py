@@ -101,13 +101,16 @@ class MultiWii:
     def __init__(self, host, port):
 
         self.initCommon()
+        self.host = host
+        self.port = port
+        self.connCnt = 0
+        self.cmdCnt = 0
 
         """Time to wait until the board becomes operational"""
         wakeup = 2
         try:
-            print "Connect to "+host+"..."
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect((host, port))
+            self.connect()
             for i in range(1,wakeup):
                 if self.PRINT:
                     print wakeup-i
@@ -116,6 +119,50 @@ class MultiWii:
                     time.sleep(1)
         except Exception, error:
             print "\n\nError opening "+host+"\n"+str(error)+"\n\n"
+
+
+    def connect(self):
+        try:
+            if self.sock != None:
+                self.connCnt+=1
+                print "Connecting("+str(self.connCnt)+") to "+self.host+".."
+                self.sock.connect((self.host, self.port))
+        except Exception, error:
+            print "Failed to connect: "+str(error)+"\n"
+            #print error.errno
+            if error.errno == 106:
+                print "ERROR 106"
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            time.sleep(1)
+
+
+    def sendData(self, msg):
+        if self.ser != None:
+            b = self.ser.write(msg)
+        else:
+            self.sock.sendall(msg)
+
+    def recvData(self):
+        if self.ser != None:
+            b = self.ser.read()
+        else:
+            b = self.sock.recv(1)
+        return b
+
+    def recvData(self, n):
+        if self.ser != None:
+            b = self.ser.read(n)
+        else:
+            b = self.sock.recv(n)
+        return b
+
+    def flushInput(self):
+        if self.ser != None:
+            b = self.ser.flushInput()
+
+    def flushOutput(self):
+        if self.ser != None:
+            b = self.ser.flushOutput()
 
 
     """Function for sending a command to the board"""
@@ -128,17 +175,14 @@ class MultiWii:
         try:
             b = None
             msg = struct.pack('<3c2B%dhB' % len(data), *total_data)
-            print "sendCMD: " + msg
-            if self.ser != None:
-                print "serial: " + msg
-                b = self.ser.write(msg)
-            else:
-                print "tcp: " + msg
-                self.sock.sendall(msg)
-    
+            self.cmdCnt+=1
+            print "sendCMD("+str(self.cmdCnt)+"): "
+            print data
+            self.sendData(msg)
+
         except Exception, error:
-            print "\n\nError in sendCMD."
-            print "("+str(error)+")\n\n"
+            print "Error in sendCMD." + "("+str(error)+")"
+            self.connect()
             pass
 
     """Function for sending a command to the board and receive attitude"""
@@ -161,18 +205,18 @@ class MultiWii:
         try:
             start = time.time()
             b = None
-            b = self.ser.write(struct.pack('<3c2B%dhB' % len(data), *total_data))
+            b = self.sendData(struct.pack('<3c2B%dhB' % len(data), *total_data))
             while True:
-                header = self.ser.read()
+                header = self.recvData()
                 if header == '$':
-                    header = header+self.ser.read(2)
+                    header = header+self.recvData(2)
                     break
-            datalength = struct.unpack('<b', self.ser.read())[0]
-            code = struct.unpack('<b', self.ser.read())
-            data = self.ser.read(datalength)
+            datalength = struct.unpack('<b', self.recvData())[0]
+            code = struct.unpack('<b', self.recvData())
+            data = self.recvData(datalength)
             temp = struct.unpack('<'+'h'*(datalength/2),data)
-            self.ser.flushInput()
-            self.ser.flushOutput()
+            self.flushInput()
+            self.flushOutput()
             elapsed = time.time() - start
             self.attitude['angx']=float(temp[0]/10.0)
             self.attitude['angy']=float(temp[1]/10.0)
@@ -183,6 +227,7 @@ class MultiWii:
         except Exception, error:
             #print "\n\nError in sendCMDreceiveATT."
             #print "("+str(error)+")\n\n"
+            self.connect()
             pass
 
     """Function to arm / disarm """
@@ -222,16 +267,16 @@ class MultiWii:
             start = time.time()
             self.sendCMD(0,cmd,[])
             while True:
-                header = self.ser.read()
+                header = self.recvData()
                 if header == '$':
-                    header = header+self.ser.read(2)
+                    header = header+self.recvData(2)
                     break
-            datalength = struct.unpack('<b', self.ser.read())[0]
-            code = struct.unpack('<b', self.ser.read())
-            data = self.ser.read(datalength)
+            datalength = struct.unpack('<b', self.recvData())[0]
+            code = struct.unpack('<b', self.recvData())
+            data = self.recvData(datalength)
             temp = struct.unpack('<'+'h'*(datalength/2),data)
-            self.ser.flushInput()
-            self.ser.flushOutput()
+            self.flushInput()
+            self.flushOutput()
             elapsed = time.time() - start
             if cmd == MultiWii.ATTITUDE:
                 self.attitude['angx']=float(temp[0]/10.0)
@@ -279,17 +324,17 @@ class MultiWii:
                 start = time.clock()
                 self.sendCMD(0,cmd,[])
                 while True:
-                    header = self.ser.read()
+                    header = self.recvData()
                     if header == '$':
-                        header = header+self.ser.read(2)
+                        header = header+self.recvData(2)
                         break
-                datalength = struct.unpack('<b', self.ser.read())[0]
-                code = struct.unpack('<b', self.ser.read())
-                data = self.ser.read(datalength)
+                datalength = struct.unpack('<b', self.recvData())[0]
+                code = struct.unpack('<b', self.recvData())
+                data = self.recvData(datalength)
                 temp = struct.unpack('<'+'h'*(datalength/2),data)
                 elapsed = time.clock() - start
-                self.ser.flushInput()
-                self.ser.flushOutput()
+                self.flushInput()
+                self.flushOutput()
                 if cmd == MultiWii.ATTITUDE:
                     self.attitude['angx']=float(temp[0]/10.0)
                     self.attitude['angy']=float(temp[1]/10.0)
@@ -328,30 +373,30 @@ class MultiWii:
             start = time.time()
             self.sendCMD(0,self.ATTITUDE,[])
             while True:
-                header = self.ser.read()
+                header = self.recvData()
                 if header == '$':
-                    header = header+self.ser.read(2)
+                    header = header+self.recvData(2)
                     break
-            datalength = struct.unpack('<b', self.ser.read())[0]
-            code = struct.unpack('<b', self.ser.read())
-            data = self.ser.read(datalength)
+            datalength = struct.unpack('<b', self.recvData())[0]
+            code = struct.unpack('<b', self.recvData())
+            data = self.recvData(datalength)
             temp = struct.unpack('<'+'h'*(datalength/2),data)
-            self.ser.flushInput()
-            self.ser.flushOutput()
+            self.flushInput()
+            self.flushOutput()
 
             self.sendCMD(0,self.RC,[])
             while True:
-                header = self.ser.read()
+                header = self.recvData()
                 if header == '$':
-                    header = header+self.ser.read(2)
+                    header = header+self.recvData(2)
                     break
-            datalength = struct.unpack('<b', self.ser.read())[0]
-            code = struct.unpack('<b', self.ser.read())
-            data = self.ser.read(datalength)
+            datalength = struct.unpack('<b', self.recvData())[0]
+            code = struct.unpack('<b', self.recvData())
+            data = self.recvData(datalength)
             temp2 = struct.unpack('<'+'h'*(datalength/2),data)
             elapsed = time.time() - start
-            self.ser.flushInput()
-            self.ser.flushOutput()
+            self.flushInput()
+            self.flushOutput()
 
             if cmd == MultiWii.ATTITUDE:
                 self.message['angx']=float(temp[0]/10.0)

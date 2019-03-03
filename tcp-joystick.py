@@ -16,15 +16,14 @@ import struct, time
 import pygame
 from modules.utils import *
 from modules.pyMultiwii import MultiWii
+from time import sleep
 
 
 # Main configuration
 TCP_IP = "127.0.0.1" # Localhost (for testing)
-#UDP_IP = "130.209.176.146" # Vehicle IP address
 TCP_PORT = 5761 # 51001 # This port match the ones using on other scripts
 
 update_rate = 0.01 # 100 hz loop cycle
-# Create UDP socket
 vehicle = MultiWii(TCP_IP, TCP_PORT)
 
 try:
@@ -43,16 +42,20 @@ while True:
     pygame.event.pump()
     roll     = mapping(joystick.get_axis(0),-1.0,1.0,1000,2000)
     pitch    = mapping(joystick.get_axis(1),1.0,-1.0,1000,2000)
-    yaw      = mapping(joystick.get_axis(4),-1.0,1.0,1000,2000)
-    throttle = mapping(joystick.get_axis(2),1.0,-1.0,1000,2000)
+    yaw      = mapping(joystick.get_axis(2),-1.0,1.0,1000,2000)
+    throttle = mapping(joystick.get_axis(4),1.0,-1.0,1000,2000)
+    aux1     = mapping(joystick.get_axis(3),1.0,-1.0,1000,2000)
+    aux2     = mapping(joystick.get_button(0), 0, 1, 1200, 1800)
+    aux3     = mapping(joystick.get_button(1), 0, 1, 1200, 1800)
+    aux4     = mapping(joystick.get_button(2), 0, 1, 1200, 1800)
     mode     = 0 #joystick.get_button(24)
 
     # RC commnads to be sent to the MultiWii 
     # Order: roll, pitch, yaw, throttle, aux1, aux2, aux3, aux4
-    rcCMD = [roll,pitch,yaw,throttle,1000,1000,1000,1000]
+    rcCMD = [roll,pitch,yaw,throttle,aux1,aux2,aux3,aux4]
 
     vehicle.sendCMD(16,MultiWii.SET_RAW_RC,rcCMD)
-    print rcCMD
+    #print rcCMD
 
 
     # Be sure to always send the data as floats
@@ -64,5 +67,6 @@ while True:
     #print message
 
     # Make this loop work at update_rate
-    while elapsed < update_rate:
-        elapsed = time.time() - current
+    #while elapsed < update_rate:
+    #    elapsed = time.time() - current
+    sleep(update_rate)
