@@ -12,7 +12,7 @@ __email__ = "alduxvm@gmail.com"
 __status__ = "Development"
 
 
-import serial, time, struct
+import serial, time, struct, socket
 
 
 class MultiWii:
@@ -53,11 +53,10 @@ class MultiWii:
     SWITCH_RC_SERIAL = 210
     IS_SERIAL = 211
     DEBUG = 254
+    ser = None
+    sock = None
 
-
-    """Class initialization"""
-    def __init__(self, serPort):
-
+    def initCommon(self):
         """Global variables of data"""
         self.rcChannels = {'roll':0,'pitch':0,'yaw':0,'throttle':0,'elapsed':0,'timestamp':0}
         self.rawIMU = {'ax':0,'ay':0,'az':0,'gx':0,'gy':0,'gz':0,'elapsed':0,'timestamp':0}
@@ -69,6 +68,9 @@ class MultiWii:
         self.elapsed = 0
         self.PRINT = 1
 
+    """Class initialization"""
+    def __init__(self, serPort):
+        self.initCommon()
         self.ser = serial.Serial()
         self.ser.port = serPort
         self.ser.baudrate = 115200
@@ -95,6 +97,27 @@ class MultiWii:
         except Exception, error:
             print "\n\nError opening "+self.ser.port+" port.\n"+str(error)+"\n\n"
 
+
+    def __init__(self, host, port):
+
+        self.initCommon()
+
+        """Time to wait until the board becomes operational"""
+        wakeup = 2
+        try:
+            print "Connect to "+host+"..."
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.connect((host, port))
+            for i in range(1,wakeup):
+                if self.PRINT:
+                    print wakeup-i
+                    time.sleep(1)
+                else:
+                    time.sleep(1)
+        except Exception, error:
+            print "\n\nError opening "+host+"\n"+str(error)+"\n\n"
+
+
     """Function for sending a command to the board"""
     def sendCMD(self, data_length, code, data):
         checksum = 0
@@ -104,10 +127,18 @@ class MultiWii:
         total_data.append(checksum)
         try:
             b = None
-            b = self.ser.write(struct.pack('<3c2B%dhB' % len(data), *total_data))
+            msg = struct.pack('<3c2B%dhB' % len(data), *total_data)
+            print "sendCMD: " + msg
+            if self.ser != None:
+                print "serial: " + msg
+                b = self.ser.write(msg)
+            else:
+                print "tcp: " + msg
+                self.sock.sendall(msg)
+    
         except Exception, error:
-            #print "\n\nError in sendCMD."
-            #print "("+str(error)+")\n\n"
+            print "\n\nError in sendCMD."
+            print "("+str(error)+")\n\n"
             pass
 
     """Function for sending a command to the board and receive attitude"""
