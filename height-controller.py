@@ -20,7 +20,7 @@ from modules.pyMultiwii import MultiWii
 
 
 TCP_IP = "127.0.0.1" # Localhost (for testing)
-TCP_PORT = 5761 # 51001 # This port match the ones using on other scripts
+TCP_PORT = 3334 # 51001 # This port match the ones using on other scripts
 
 
 # Main configuration
@@ -49,8 +49,8 @@ def control():
     global desiredThrottle
     global hPIDvalue
     isEnabled = True
-    currentAlt = 100
-    desiredAlt = 100
+    currentAlt = 1
+    desiredAlt = 1
 
     try:
         while True:
@@ -79,11 +79,11 @@ def control():
             #rcCMD = [limit(n,1000,2000) for n in rcCMD]
 
             # Send commands to vehicle
-            vehicle.sendCMD(8,MultiWii.SET_RAW_RC,rcCMD)
+            #vehicle.sendCMD(8,MultiWii.SET_RAW_RC,rcCMD)
 
             #print "Mode: %s | Z: %0.3f | FilterZ: %0.3f | Throttle: %d " % (mode, currentPos['z'], currentPos['z'], rcCMD[3])
 
-            time.sleep(0.05)
+            time.sleep(0.01)
 
     except Exception,error:
         print "Error in control thread: "+str(error)

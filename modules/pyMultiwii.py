@@ -89,15 +89,15 @@ class MultiWii:
         try:
             self.ser.open()
             if self.PRINT:
-                print "Waking up board on "+self.ser.port+"..."
+                print("Waking up board on "+self.ser.port+"...")
             for i in range(1,wakeup):
                 if self.PRINT:
-                    print wakeup-i
+                    print(wakeup-i)
                     time.sleep(1)
                 else:
                     time.sleep(1)
-        except Exception, error:
-            print "\n\nError opening "+self.ser.port+" port.\n"+str(error)+"\n\n"
+        except (Exception, error):
+            print("\n\nError opening "+self.ser.port+" port.\n"+str(error)+"\n\n")
 
 
     def __init__(self, host, port):
@@ -115,25 +115,25 @@ class MultiWii:
             self.connect()
             for i in range(1,wakeup):
                 if self.PRINT:
-                    print wakeup-i
+                    print(wakeup-i)
                     time.sleep(1)
                 else:
                     time.sleep(1)
-        except Exception, error:
-            print "\n\nError opening "+host+"\n"+str(error)+"\n\n"
+        except Exception as error:
+            print("\n\nError opening "+host+"\n"+str(error)+"\n\n")
 
 
     def connect(self):
         try:
             if self.sock != None:
                 self.connCnt+=1
-                print "Connecting("+str(self.connCnt)+") to "+self.host+".."
+                print("Connecting("+str(self.connCnt)+") to "+self.host+"..")
                 self.sock.connect((self.host, self.port))
-        except Exception, error:
-            print "Failed to connect: "+str(error)+"\n"
+        except (Exception, error):
+            print("Failed to connect: "+str(error)+"\n")
             #print error.errno
             if error.errno == 106:
-                print "ERROR 106"
+                print("ERROR 106")
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             time.sleep(1)
 
@@ -170,13 +170,14 @@ class MultiWii:
     """Function for sending a command to the board"""
     def sendCMD(self, data_length, code, data):
         checksum = 0
-        total_data = ['$', 'M', '<', data_length, code] + data
-        for i in struct.pack('<2B%dh' % len(data), *total_data[3:len(total_data)]):
-            checksum = checksum ^ ord(i)
+        total_data = [ord('$'), ord('M'), ord('<'), data_length, code] + data
+        d = struct.pack('<2B%dh' % len(data), *total_data[3:len(total_data)])
+        for i in d:
+            checksum = checksum ^ i
         total_data.append(checksum)
         try:
             b = None
-            msg = struct.pack('<3c2B%dhB' % len(data), *total_data)
+            msg = struct.pack('<3B2B%dhB' % len(data), *total_data)
             self.cmdCnt+=1
             #print "sendCMD("+str(self.cmdCnt)+"): "
             #print data
@@ -184,10 +185,36 @@ class MultiWii:
             #return 0
             return self.getResponse(0)
 
-        except Exception, error:
-            print "Error in sendCMD." + "("+str(error)+")"
+        except Exception as error:
+            print("Error in sendCMD." + "("+str(error)+")")
             self.connect()
             pass
+
+
+    def sendCMD2(self, data_length, code):
+        checksum = 0
+        total_data = [ord('$'), ord('M'), ord('<'), data_length, code]
+        sub = total_data[3:len(total_data)]
+        d = struct.pack('<2B', *sub)
+        for i in d:
+            checksum = checksum ^ i
+        total_data.append(checksum)
+        try:
+            b = None
+            msg = struct.pack('<6B', *total_data)
+            self.cmdCnt+=1
+            #print "sendCMD("+str(self.cmdCnt)+"): "
+            #print data
+            self.sendData(msg)
+            #return 0
+            return self.getResponse(0)
+
+        except Exception as error:
+            print("Error in sendCMD." + "("+str(error)+")")
+            self.connect()
+            pass
+
+
 
     """Function for sending a command to the board and receive attitude"""
     """
@@ -204,7 +231,7 @@ class MultiWii:
         checksum = 0
         total_data = ['$', 'M', '<', data_length, code] + data
         for i in struct.pack('<2B%dh' % len(data), *total_data[3:len(total_data)]):
-            checksum = checksum ^ ord(i)
+            checksum = checksum ^ i
         total_data.append(checksum)
         try:
             start = time.time()
@@ -228,7 +255,7 @@ class MultiWii:
             self.attitude['elapsed']=round(elapsed,3)
             self.attitude['timestamp']="%0.2f" % (time.time(),) 
             return self.attitude
-        except Exception, error:
+        except (Exception, error):
             #print "\n\nError in sendCMDreceiveATT."
             #print "("+str(error)+")\n\n"
             self.connect()
@@ -268,14 +295,14 @@ class MultiWii:
     def getResponse(self, start):
         while True:
             header = self.recvData(1)
-            if header == '$':
+            if header[0] == ord('$'):
                 header = header+self.recvData(2)
                 break
         datalength = struct.unpack('<b', self.recvData(1))[0]
         code = struct.unpack('<b', self.recvData(1))
         data = self.recvData(datalength)
         crc = self.recvData(1)
-        temp = struct.unpack('<'+'h'*(datalength/2),data)
+        temp = struct.unpack('<%dh' % (datalength/2),data)
         self.flushInput()
         self.flushOutput()
         elapsed = time.time() - start
@@ -323,11 +350,11 @@ class MultiWii:
     def getData(self, cmd):
         try:
             start = time.time()
-            return self.sendCMD(0,cmd,[])
+            return self.sendCMD(0,cmd, [])
             #return self.getResponse(start)
 
-        except Exception, error:
-            print error
+        except Exception as error:
+            print(error)
             pass
 
     """Function to receive a data packet from the board. Note: easier to use on threads"""
@@ -377,7 +404,7 @@ class MultiWii:
                     self.motor['m4']=float(temp[3])
                     self.motor['elapsed']="%0.3f" % (elapsed,)
                     self.motor['timestamp']="%0.2f" % (time.time(),)
-            except Exception, error:
+            except (Exception, error):
                 pass
 
     """Function to ask for 2 fixed cmds, attitude and rc channels, and receive them. Note: is a bit slower than others"""
@@ -424,5 +451,5 @@ class MultiWii:
                 return self.message
             else:
                 return "No return error!"
-        except Exception, error:
-            print error
+        except (Exception, error):
+            print(error)
